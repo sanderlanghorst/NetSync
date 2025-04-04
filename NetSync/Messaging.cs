@@ -6,22 +6,30 @@ namespace NetSync;
 
 public class Messaging : IMessaging
 {
-    private TcpListener? _tcpListener = null;
+    private readonly TcpListener _tcpListener;
     public IPEndPoint? EndPoint { get; private set; }
 
     public List<IPEndPoint> EndPoints { get; } = [];
 
-    public Task Start(CancellationToken cancellationToken)
+    private bool IsStarted => EndPoint != null;
+    
+    public Messaging()
     {
         _tcpListener = new TcpListener(IPAddress.Any, 0);
+    }
+    
+    public Task Start(CancellationToken cancellationToken)
+    {
         _tcpListener.Start();
         EndPoint = (IPEndPoint)_tcpListener.LocalEndpoint;
         cancellationToken.Register(() => _tcpListener.Stop());
+        
         return Task.CompletedTask;
     }
     
     public async Task Send(string say, CancellationToken cancellationToken)
     {
+        if(!IsStarted) throw new InvalidOperationException("Not started");
         var sendingTasks = EndPoints.ToList().Select(async (e) => await SendMessage(e, say, cancellationToken)).ToArray();
         await Task.WhenAll(sendingTasks);
     }
@@ -53,10 +61,12 @@ public class Messaging : IMessaging
         }
     }
     
-    public async Task Listen(CancellationToken cancellationToken)
+    public async Task Run(CancellationToken cancellationToken)
     {
+        if(!IsStarted) throw new InvalidOperationException("Not started");
+        
         cancellationToken.Register(() => _tcpListener.Stop());
-        Console.WriteLine("Messaging listening on port {0}", EndPoint.Port);
+        Console.WriteLine("Messaging listening on port {0}", EndPoint!.Port);
         while (cancellationToken.IsCancellationRequested == false)
         {
             var client = await _tcpListener.AcceptTcpClientAsync(cancellationToken);
@@ -74,10 +84,8 @@ public class Messaging : IMessaging
         }
     }
 
-    public void AddEndpoint(IPEndPoint address)
+    public void UpdateClient(IPEndPoint address)
     {
-        var dns = Dns.GetHostAddresses(Dns.GetHostName());
-        if (dns.Any(d => new IPEndPoint(d, ((IPEndPoint)_tcpListener.LocalEndpoint).Port).Equals(address))) return;
         
         if (!EndPoints.Any(ep => ep.Equals(address)))
         {
@@ -85,4 +93,6 @@ public class Messaging : IMessaging
             Console.WriteLine("Messaging added endpoint: {0}", address);
         }
     }
+    
+    
 }

@@ -6,8 +6,8 @@ public interface IMessaging
 {
     Task Start(CancellationToken cancellationToken);
     Task Send(string say, CancellationToken cancellationToken);
-    Task Listen(CancellationToken cancellationToken);
-    void AddEndpoint(IPEndPoint address);
+    Task Run(CancellationToken cancellationToken);
+    void UpdateClient(IPEndPoint address);
     List<IPEndPoint> EndPoints { get; }
     IPEndPoint? EndPoint { get; }
 }
