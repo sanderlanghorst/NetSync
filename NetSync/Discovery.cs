@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Google.Protobuf;
 using Microsoft.Extensions.Hosting;
+using NetSync.Protos;
 
 namespace NetSync;
 
@@ -22,7 +24,7 @@ public class Discovery
         _hostLifetime = hostLifetime;
         _serializer = serializer;
         
-        _uniqueId = Guid.CreateVersion7().ToString("N");
+        _uniqueId = Guid.CreateVersion7().ToString("N").Substring(16, 16);
     }
 
     public async Task Run()
@@ -75,7 +77,7 @@ public class Discovery
         await _udpChannel.SendAsync(message, message.Length, broadcastEndPoint);
     }
 
-    private byte[] Encode<T>(T data)
+    private byte[] Encode<T>(T data) where T : IMessage<T>
     {
         var dataBytes = _serializer.Encode(data);
         var uniqueIdBytes = _localEncoding.GetBytes(_uniqueId);
@@ -87,25 +89,12 @@ public class Discovery
         return result;
     }
 
-    public T Decode<T>(byte[] message)
+    public T Decode<T>(byte[] message) where T : IMessage<T>
     {
         var uniqueIdLength = _localEncoding.GetByteCount(_uniqueId);
         var dataBytes = new byte[message.Length - uniqueIdLength];
         Array.Copy(message, uniqueIdLength, dataBytes, 0, dataBytes.Length);
         return _serializer.Decode<T>(dataBytes);
-    }
-}
-
-public record DiscoveryHandout
-{
-    public required string Address { get; init; }
-
-    public static DiscoveryHandout From(IPEndPoint endPoint)
-    {
-        return new DiscoveryHandout
-        {
-            Address = endPoint.ToString()
-        };
     }
 }
 

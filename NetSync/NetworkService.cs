@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Hosting;
+using NetSync.Protos;
 
 namespace NetSync;
 

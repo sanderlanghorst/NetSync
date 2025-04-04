@@ -5,7 +5,7 @@ using NetSync;
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
-        services.AddSingleton<ISerializer, JsonUtf8Serializer>();
+        services.AddSingleton<ISerializer, BinarySerializer>();
         services.AddSingleton<IMessaging, Messaging>();
         services.AddSingleton<Discovery>();
         services.AddSingleton<IConsoleService, ConsoleService>();
