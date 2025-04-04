@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NetSync.Protos;
 
 namespace NetSync;
@@ -15,11 +16,13 @@ public class NetworkService : INetworkService
     private readonly Discovery _discovery;
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly Random _random = new();
-    
+    private readonly ILogger<NetworkService> _logger;
+
     private IPAddress[] LocalInterfaces { get; } = Dns.GetHostAddresses(Dns.GetHostName());
 
-    public NetworkService(IMessaging messaging, Discovery discovery, IHostApplicationLifetime hostLifetime)
+    public NetworkService(IMessaging messaging, Discovery discovery, IHostApplicationLifetime hostLifetime, ILogger<NetworkService> logger)
     {
+        _logger = logger;
         _messaging = messaging;
         _discovery = discovery;
         _hostLifetime = hostLifetime;
@@ -28,11 +31,18 @@ public class NetworkService : INetworkService
 
     public async Task Run()
     {
-        await _messaging.Start(_hostLifetime.ApplicationStopping);
+        try
+        {
+            await _messaging.Start(_hostLifetime.ApplicationStopping);
         
-        var listenTask = _messaging.Run(_hostLifetime.ApplicationStopping);
+            var listenTask = _messaging.Run(_hostLifetime.ApplicationStopping);
         
-        await Task.WhenAll(_discovery.Run(), listenTask, HandoutTask());
+            await Task.WhenAll(_discovery.Run(), listenTask, HandoutTask());
+        }
+        catch (Exception e)
+        {
+            _logger.LogCritical(e, "Error in NetworkService");
+        }
     }
 
     private async Task HandoutTask()

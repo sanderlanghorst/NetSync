@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using Google.Protobuf;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NetSync.Protos;
 
 namespace NetSync;
@@ -16,14 +17,15 @@ public class Discovery
     private UdpClient _udpChannel;
     private readonly string _uniqueId;
     private readonly Encoding _localEncoding = Encoding.ASCII;
+    private readonly ILogger<Discovery> _logger;
 
     public event Action<DiscoveryRecieved> OnHandout;
 
-    public Discovery(IHostApplicationLifetime hostLifetime, ISerializer serializer)
+    public Discovery(IHostApplicationLifetime hostLifetime, ISerializer serializer, ILogger<Discovery> logger)
     {
         _hostLifetime = hostLifetime;
         _serializer = serializer;
-        
+        _logger = logger;
         _uniqueId = Guid.CreateVersion7().ToString("N").Substring(16, 16);
     }
 
@@ -45,7 +47,7 @@ public class Discovery
 
     private async Task ListenTask()
     {
-        Console.WriteLine("Discovery listening on port " + _port);
+        _logger.LogInformation("Discovery listening on port " + _port);
         while (!_hostLifetime.ApplicationStopping.IsCancellationRequested)
         {
             try
@@ -64,14 +66,14 @@ public class Discovery
             }
             catch (SocketException e)
             {
-                Console.WriteLine(e);
+                _logger.LogError(e, e.Message);
             }
         }
     }
 
     public async Task Handout(DiscoveryHandout discovery)
     {
-        Console.WriteLine("Handout discovery to " + discovery.Address);
+        _logger.LogInformation("Handout discovery to " + discovery.Address);
         var message = Encode(discovery);
         var broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, _port);
         await _udpChannel.SendAsync(message, message.Length, broadcastEndPoint);

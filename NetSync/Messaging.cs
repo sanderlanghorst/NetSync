@@ -1,21 +1,24 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace NetSync;
 
 public class Messaging : IMessaging
 {
     private readonly TcpListener _tcpListener;
+    private readonly ILogger<Messaging> _logger;
     public IPEndPoint? EndPoint { get; private set; }
 
     public List<IPEndPoint> EndPoints { get; } = [];
 
     private bool IsStarted => EndPoint != null;
     
-    public Messaging()
+    public Messaging(ILogger<Messaging> logger)
     {
         _tcpListener = new TcpListener(IPAddress.Any, 0);
+        _logger = logger;
     }
     
     public Task Start(CancellationToken cancellationToken)
@@ -52,12 +55,12 @@ public class Messaging : IMessaging
                 e.SocketErrorCode == SocketError.TimedOut)
             {
                 EndPoints.Remove(endPoint);
-                Console.WriteLine($"Removed endpoint {endPoint} due to error: {e.SocketErrorCode}");
+                _logger.LogInformation($"Removed endpoint {endPoint} due to error: {e.SocketErrorCode}");
             }
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.LogError(e, e.Message);
         }
     }
     
@@ -66,7 +69,7 @@ public class Messaging : IMessaging
         if(!IsStarted) throw new InvalidOperationException("Not started");
         
         cancellationToken.Register(() => _tcpListener.Stop());
-        Console.WriteLine("Messaging listening on port {0}", EndPoint!.Port);
+        _logger.LogInformation("Messaging listening on port {0}", EndPoint!.Port);
         while (cancellationToken.IsCancellationRequested == false)
         {
             var client = await _tcpListener.AcceptTcpClientAsync(cancellationToken);
@@ -79,7 +82,7 @@ public class Messaging : IMessaging
                 message.Append(buffer, 0, bytesRead);
             }
             
-            Console.WriteLine("Messaging Received: {0}", message);
+            _logger.LogInformation("Messaging Received: {0}", message);
             client.Close();
         }
     }
@@ -90,7 +93,7 @@ public class Messaging : IMessaging
         if (!EndPoints.Any(ep => ep.Equals(address)))
         {
             EndPoints.Add(address);
-            Console.WriteLine("Messaging added endpoint: {0}", address);
+            _logger.LogInformation("Messaging added endpoint: {0}", address);
         }
     }
     
