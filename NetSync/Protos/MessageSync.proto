@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+option csharp_namespace = "NetSync.Protos";
+
+message MessageSync {
+  string Key = 1;
+  repeated Kvp Data = 2;
+}
+message Kvp{
+  string Key = 1;
+  string Value = 2;
+}

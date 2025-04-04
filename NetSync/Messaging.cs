@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 
 namespace NetSync;
@@ -8,6 +9,7 @@ namespace NetSync;
 public class Messaging : IMessaging
 {
     private readonly TcpListener _tcpListener;
+    private readonly ISerializer _serializer;
     private readonly ILogger<Messaging> _logger;
     public IPEndPoint? EndPoint { get; private set; }
 
@@ -15,12 +17,15 @@ public class Messaging : IMessaging
 
     private bool IsStarted => EndPoint != null;
     
-    public Messaging(ILogger<Messaging> logger)
+    public Messaging(ISerializer serializer, ILogger<Messaging> logger)
     {
         _tcpListener = new TcpListener(IPAddress.Any, 0);
+        _serializer = serializer;
         _logger = logger;
     }
-    
+
+    public event EventHandler<IMessage>? OnMessageReceived;
+
     public Task Start(CancellationToken cancellationToken)
     {
         _tcpListener.Start();
@@ -29,21 +34,21 @@ public class Messaging : IMessaging
         
         return Task.CompletedTask;
     }
-    
-    public async Task Send(string say, CancellationToken cancellationToken)
+
+    public async Task Send<T>(T message, CancellationToken cancellationToken) where T : IMessage<T>
     {
         if(!IsStarted) throw new InvalidOperationException("Not started");
-        var sendingTasks = EndPoints.ToList().Select(async (e) => await SendMessage(e, say, cancellationToken)).ToArray();
+        var sendingTasks = EndPoints.ToList().Select(async (e) => await SendMessage(e, message, cancellationToken)).ToArray();
         await Task.WhenAll(sendingTasks);
     }
 
-    private async Task SendMessage(IPEndPoint endPoint, string message, CancellationToken cancellationToken)
+    private async Task SendMessage<T>(IPEndPoint endPoint, T message, CancellationToken cancellationToken) where T:IMessage<T>
     {
         try
         {
             var client = new TcpClient();
             await client.ConnectAsync(endPoint, cancellationToken);
-            var bytes = Encoding.ASCII.GetBytes(message);
+            var bytes= _serializer.Serialize(message);
             await client.GetStream().WriteAsync(bytes, 0, bytes.Length, cancellationToken);
             client.Close();
         }
@@ -72,18 +77,19 @@ public class Messaging : IMessaging
         _logger.LogInformation("Messaging listening on port {0}", EndPoint!.Port);
         while (cancellationToken.IsCancellationRequested == false)
         {
-            var client = await _tcpListener.AcceptTcpClientAsync(cancellationToken);
-            var message = new StringBuilder();
-            using var reader = new StreamReader(client.GetStream(), Encoding.ASCII);
-            char[] buffer = new char[1024];
-            int bytesRead;
-            while ((bytesRead = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            try
             {
-                message.Append(buffer, 0, bytesRead);
+                var client = await _tcpListener.AcceptTcpClientAsync(cancellationToken);
+                
+                var message = _serializer.Deserialize<>()
+                
+                OnMessageReceived?.Invoke(this, message);
+                client.Close();
             }
-            
-            _logger.LogInformation("Messaging Received: {0}", message);
-            client.Close();
+            catch (Exception e)
+            {
+                _logger.LogError(e, e.Message);
+            }
         }
     }
 

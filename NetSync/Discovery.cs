@@ -81,7 +81,7 @@ public class Discovery
 
     private byte[] Encode<T>(T data) where T : IMessage<T>
     {
-        var dataBytes = _serializer.Encode(data);
+        var dataBytes = _serializer.Serialize(data);
         var uniqueIdBytes = _localEncoding.GetBytes(_uniqueId);
         var result = new byte[uniqueIdBytes.Length + dataBytes.Length];
 
@@ -96,7 +96,7 @@ public class Discovery
         var uniqueIdLength = _localEncoding.GetByteCount(_uniqueId);
         var dataBytes = new byte[message.Length - uniqueIdLength];
         Array.Copy(message, uniqueIdLength, dataBytes, 0, dataBytes.Length);
-        return _serializer.Decode<T>(dataBytes);
+        return _serializer.Deserialize<T>(dataBytes);
     }
 }
 

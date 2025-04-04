@@ -4,7 +4,7 @@ namespace NetSync;
 
 public class BinarySerializer:ISerializer
 {
-    public byte[] Encode<T>(T message) where T : IMessage<T>
+    public byte[] Serialize<T>(T message) where T : IMessage<T>
     {
         if (message is IMessage protobufMessage)
         {
@@ -17,7 +17,7 @@ public class BinarySerializer:ISerializer
         throw new InvalidOperationException("Message must be a protobuf message.");
     }
 
-    public T Decode<T>(byte[] message) where T : IMessage<T>
+    public T Deserialize<T>(byte[] message) where T : IMessage<T>
     {
         var parser = (MessageParser<T>)typeof(T).GetProperty("Parser").GetValue(null);
         return parser.ParseFrom(message);

@@ -4,6 +4,6 @@ namespace NetSync;
 
 public interface ISerializer
 {
-    byte[] Encode<T>(T message) where T : IMessage<T>;
-    T Decode<T>(byte[] message) where T : IMessage<T>;
+    byte[] Serialize<T>(T message) where T : IMessage<T>;
+    T Deserialize<T>(byte[] message) where T : IMessage<T>;
 }

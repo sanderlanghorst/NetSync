@@ -1,6 +1,5 @@
 syntax = "proto3";
 
-package NetSync.Protos;
 option csharp_namespace = "NetSync.Protos";
 
 message DiscoveryHandout {

@@ -22,7 +22,8 @@
       </Content>
     </ItemGroup>
     <ItemGroup>
-        <Protobuf Include="Protos\*.proto" />
+        <Protobuf Include="Protos\DiscoveryHandout.proto" />
+        <Protobuf Include="Protos\MessageSync.proto" />
     </ItemGroup>
 
 </Project>
