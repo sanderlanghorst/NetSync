@@ -5,6 +5,7 @@ using NetSync;
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
+        services.AddSingleton<ISerializer, JsonUtf8Serializer>();
         services.AddSingleton<IMessaging, Messaging>();
         services.AddSingleton<Discovery>();
         services.AddSingleton<IConsoleService, ConsoleService>();
@@ -13,5 +14,10 @@ var builder = Host.CreateDefaultBuilder(args)
 var host = builder.Build();
 var console = host.Services.GetRequiredService<IConsoleService>();
 var network = host.Services.GetRequiredService<INetworkService>();
-await Task.WhenAll([console.Run(), network.Run()]);
+var randomTask = Task.Run(async () =>
+{
+    await Task.Delay(new Random().Next(1000, 10000));
+    await host.Services.GetRequiredService<IMessaging>().Send("Hi there", default);
+});
+await Task.WhenAll([console.Run(), network.Run(), randomTask]);
 //new FirstService.FirstServiceClient()

@@ -8,26 +8,28 @@ namespace NetSync;
 public class Discovery
 {
     private readonly IHostApplicationLifetime _hostLifetime;
+    private readonly ISerializer _serializer;
     private readonly int _port = 12345;
     private Task _listenTask;
-    private readonly UdpClient _udpChannel;
+    private UdpClient _udpChannel;
     private readonly string _uniqueId;
+    private readonly Encoding _localEncoding = Encoding.ASCII;
 
-    public event Action<IPEndPoint> OnHandout;
+    public event Action<DiscoveryRecieved> OnHandout;
 
-    private IPAddress[] LocalInterface { get; } = Dns.GetHostAddresses(Dns.GetHostName());
-
-    public Discovery(IHostApplicationLifetime hostLifetime)
+    public Discovery(IHostApplicationLifetime hostLifetime, ISerializer serializer)
     {
         _hostLifetime = hostLifetime;
-        _udpChannel = new UdpClient();
-        _udpChannel.EnableBroadcast = true;
-        _udpChannel.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        _serializer = serializer;
+        
         _uniqueId = Guid.CreateVersion7().ToString("N");
     }
 
     public async Task Run()
     {
+        _udpChannel = new UdpClient();
+        _udpChannel.EnableBroadcast = true;
+        _udpChannel.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         _udpChannel.Client.Bind(new IPEndPoint(IPAddress.Any, _port));
         _listenTask = ListenTask();
         _hostLifetime.ApplicationStopping.Register(() =>
@@ -41,33 +43,70 @@ public class Discovery
 
     private async Task ListenTask()
     {
-        try
+        Console.WriteLine("Discovery listening on port " + _port);
+        while (!_hostLifetime.ApplicationStopping.IsCancellationRequested)
         {
-            Console.WriteLine("Discovery listening on port " + _port);
-            while (true)
+            try
             {
                 var response = await _udpChannel.ReceiveAsync(_hostLifetime.ApplicationStopping);
-                var message = Encoding.ASCII.GetString(response.Buffer, 0, response.Buffer.Length);
-                if (message.StartsWith(_uniqueId))
+                var recievedId = _localEncoding.GetString(response.Buffer, 0, _localEncoding.GetByteCount(_uniqueId));
+                if (recievedId.Equals(_uniqueId))
                 {
                     continue;
                 }
 
-                var address = IPEndPoint.Parse(message.Substring(_uniqueId.Length));
+                var handout = Decode<DiscoveryHandout>(response.Buffer);
+                var endPoint = IPEndPoint.Parse(handout.Address);
 
-                OnHandout?.Invoke(new IPEndPoint(response.RemoteEndPoint.Address, address.Port));
+                OnHandout?.Invoke(new DiscoveryRecieved(endPoint));
             }
-        }
-        catch (SocketException e)
-        {
-            Console.WriteLine(e);
+            catch (SocketException e)
+            {
+                Console.WriteLine(e);
+            }
         }
     }
 
-    public async Task Handout(string address)
+    public async Task Handout(DiscoveryHandout discovery)
     {
-        var message = Encoding.ASCII.GetBytes($"{_uniqueId}{address}");
+        Console.WriteLine("Handout discovery to " + discovery.Address);
+        var message = Encode(discovery);
         var broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, _port);
         await _udpChannel.SendAsync(message, message.Length, broadcastEndPoint);
     }
+
+    private byte[] Encode<T>(T data)
+    {
+        var dataBytes = _serializer.Encode(data);
+        var uniqueIdBytes = _localEncoding.GetBytes(_uniqueId);
+        var result = new byte[uniqueIdBytes.Length + dataBytes.Length];
+
+        Array.Copy(uniqueIdBytes, 0, result, 0, uniqueIdBytes.Length);
+        Array.Copy(dataBytes, 0, result, uniqueIdBytes.Length, dataBytes.Length);
+
+        return result;
+    }
+
+    public T Decode<T>(byte[] message)
+    {
+        var uniqueIdLength = _localEncoding.GetByteCount(_uniqueId);
+        var dataBytes = new byte[message.Length - uniqueIdLength];
+        Array.Copy(message, uniqueIdLength, dataBytes, 0, dataBytes.Length);
+        return _serializer.Decode<T>(dataBytes);
+    }
 }
+
+public record DiscoveryHandout
+{
+    public required string Address { get; init; }
+
+    public static DiscoveryHandout From(IPEndPoint endPoint)
+    {
+        return new DiscoveryHandout
+        {
+            Address = endPoint.ToString()
+        };
+    }
+}
+
+public record DiscoveryRecieved(IPEndPoint EndPoint);
