@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace NSApp;
+namespace NetSync;
 
 public class Messaging : IMessaging
 {

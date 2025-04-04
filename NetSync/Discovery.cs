@@ -3,7 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Hosting;
 
-namespace NSApp;
+namespace NetSync;
 
 public class Discovery
 {

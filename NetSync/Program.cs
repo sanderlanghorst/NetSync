@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NSApp;
+using NetSync;
 
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>

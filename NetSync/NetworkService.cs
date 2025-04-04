@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 
-namespace NSApp;
+namespace NetSync;
 
 public interface INetworkService
 {
