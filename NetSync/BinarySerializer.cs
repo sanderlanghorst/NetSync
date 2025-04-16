@@ -1,25 +1,14 @@
-using Google.Protobuf;
-
 namespace NetSync;
 
-public class BinarySerializer:ISerializer
+public class BinarySerializer : ISerializer
 {
-    public byte[] Serialize<T>(T message) where T : IMessage<T>
+    public byte[] Serialize<T>(T message) 
     {
-        if (message is IMessage protobufMessage)
-        {
-            using (var memoryStream = new MemoryStream())
-            {
-                protobufMessage.WriteTo(memoryStream);
-                return memoryStream.ToArray();
-            }
-        }
-        throw new InvalidOperationException("Message must be a protobuf message.");
+        throw new NotImplementedException();
     }
-
-    public T Deserialize<T>(byte[] message) where T : IMessage<T>
+    
+    public object Deserialize(byte[] message, Type type)
     {
-        var parser = (MessageParser<T>)typeof(T).GetProperty("Parser").GetValue(null);
-        return parser.ParseFrom(message);
+        throw new NotImplementedException();
     }
 }

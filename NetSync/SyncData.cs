@@ -1,68 +1,149 @@
 using System.Collections.Concurrent;
-using System.Collections.Specialized;
-using System.ComponentModel;
+using Google.Protobuf;
+using Microsoft.Extensions.Logging;
 using NetSync.Protos;
 
 namespace NetSync;
 
 public class SyncData : ISyncData
 {
+    private static class Headers
+    {
+        public const string Action = "action";
+
+        public static class Actions
+        {
+            public const string Remove = "remove";
+            public const string Sync = "sync";
+            public const string Full = "full";
+        }
+        
+        public const string Type = "type";
+    }
     private readonly IMessaging _messaging;
+    private readonly ISerializer _serializer;
+    private readonly ILogger<SyncData> _logger;
 
-    public ConcurrentDictionary<string, WeakReference<object>> Data { get; set; }
+    private ConcurrentDictionary<string, object> Data { get; set; }
 
-    public SyncData(IMessaging messaging)
+    public SyncData(IMessaging messaging, ISerializer serializer, ILogger<SyncData> logger)
     {
         _messaging = messaging;
-        Data = new ConcurrentDictionary<string, WeakReference<object>>();
+        _serializer = serializer;
+        _logger = logger;
+        _messaging.OnMessageReceived += MessagingOnOnMessageReceived;
+        _messaging.OnEndpointAdded += async (sender, endPoint) =>
+            await Task.WhenAll(Data.Select(kvp =>
+            _messaging.Send(SerializeMessage(kvp.Key, kvp.Value), endPoint, CancellationToken.None)).ToArray());
+        Data = new ConcurrentDictionary<string, object>();
     }
 
-    public void Register(string key, object value)
+    private void MessagingOnOnMessageReceived(object? sender, IMessage e)
     {
-        if (Data.ContainsKey(key))
+        if (e is not MessageSync sync) return;
+        _logger.LogInformation($"Sync message received: {sync.Key}");
+        switch (sync.Headers.FirstOrDefault(h => h.Key == Headers.Action)?.Value)
         {
-            Data[key].SetTarget(value);
+            case Headers.Actions.Remove:
+                foreach (var kvp in sync.Data)
+                {
+                    Data.TryRemove(kvp.Key, out _);
+                }
+                break;
+            case Headers.Actions.Sync:
+                var type = Type.GetType(sync.Headers.First(h => h.Key == Headers.Type).Value);
+                if (type == null) break;
+                foreach (var kvp in sync.Data)
+                {
+                    var value = kvp.Value.ToByteArray();
+                    Data[sync.Key] = _serializer.Deserialize(value, type);
+                }
+                break;
+            case Headers.Actions.Full:
+                foreach (var kvp in sync.Data)
+                {
+                    var key = kvp.Key;
+                    var value = kvp.Value.ToByteArray();
+                    Data[key] = value;
+                }
+                break;
+        }
+    }
+
+    public void Set<T>(string key, T? value)
+    {
+        if (value == null)
+        {
+            Data.TryRemove(key, out _);
+            var message = GetRemoveMessage(key);
+            _messaging.Send(message, CancellationToken.None);
         }
         else
         {
-            Data.TryAdd(key, new WeakReference<object>(value));
+            Data.AddOrUpdate(key, value, (k,v) => value);
+            var message = SerializeMessage(key, value);
+            _messaging.Send(message, CancellationToken.None);
         }
+    }
 
-        switch (value)
+    private MessageSync SerializeMessage<T>(string key, T value)
+    {
+        return GetSyncMessage(key, [_serializer.Serialize(value)], value.GetType());
+    }
+
+    private MessageSync GetSyncMessage(string key, byte[][] data, Type type)
+    {
+        var message = new MessageSync()
         {
-            case INotifyCollectionChanged collectionChanged:
-                collectionChanged.CollectionChanged += async (sender, args) =>
+            Key = key,
+            Timestamp = (ulong)DateTime.Now.Ticks,
+            Headers =
+            {
+                new Header()
                 {
-                    var message =
-                        new MessageSync
-                        {
-                            Key = key
-                        };
-                    message.Data.AddRange(GetData(args));
-                    await _messaging.Send(message, default);
-                };
-                break;
-            case INotifyPropertyChanged propertyChanged:
-                propertyChanged.PropertyChanged += async (sender, args) =>
+                    Key = Headers.Action,
+                    Value = Headers.Actions.Sync
+                },
+                new Header()
                 {
-                    var message = new MessageSync
-                    {
-                        Key = key
-                    };
-                    message.Data.AddRange(GetData(args));
-                    await _messaging.Send(message, default);
-                };
-                break;
+                    Key = Headers.Type,
+                    Value = type.AssemblyQualifiedName
+                }
+            },
+        };
+        message.Data.AddRange(data.Select((b,i) => new Kvp(){Key = i.ToString(), Value = ByteString.CopyFrom(b)}));
+        return message;
+    }
+    
+
+    private MessageSync GetRemoveMessage(string key)
+    {
+        return new MessageSync()
+        {
+            Key = key,
+            Timestamp = (ulong)DateTime.Now.Ticks,
+            Headers =
+            {
+                new Header(){
+                    Key = Headers.Action,
+                    Value = Headers.Actions.Remove
+                }
+            }
+        };
+    }
+
+    public T? Get<T>(string key)
+    {
+        if (Data.TryGetValue(key, out var value))
+        {
+            return (T)value;
         }
+
+        return default;
     }
 
-    private IEnumerable<Kvp> GetData(PropertyChangedEventArgs args)
+    public ICollection<string> List()
     {
-        return new List<Kvp>();
-    }
-
-    private IEnumerable<Kvp> GetData(NotifyCollectionChangedEventArgs args)
-    {
-        return new List<Kvp>();
+        return Data.Keys;
     }
 }

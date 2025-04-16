@@ -4,7 +4,11 @@
     "NetSync": {
       "commandName": "Project",
       "environmentVariables": {
-        
+      }
+    },
+    "NetSync_second-instance": {
+      "commandName": "Project",
+      "environmentVariables": {
       }
     }
   }

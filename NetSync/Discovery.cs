@@ -47,7 +47,8 @@ public class Discovery
 
     private async Task ListenTask()
     {
-        _logger.LogInformation("Discovery listening on port " + _port);
+        _logger.LogInformation("Listening on port " + _port);
+        
         while (!_hostLifetime.ApplicationStopping.IsCancellationRequested)
         {
             try
@@ -58,6 +59,7 @@ public class Discovery
                 {
                     continue;
                 }
+                _logger.LogDebug("Recieved handout from " + response.RemoteEndPoint);
 
                 var handout = Decode<DiscoveryHandout>(response.Buffer);
                 var endPoint = IPEndPoint.Parse(handout.Address);
@@ -73,7 +75,7 @@ public class Discovery
 
     public async Task Handout(DiscoveryHandout discovery)
     {
-        _logger.LogInformation("Handout discovery to " + discovery.Address);
+        _logger.LogDebug("Handout to " + discovery.Address);
         var message = Encode(discovery);
         var broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, _port);
         await _udpChannel.SendAsync(message, message.Length, broadcastEndPoint);
@@ -91,12 +93,12 @@ public class Discovery
         return result;
     }
 
-    public T Decode<T>(byte[] message) where T : IMessage<T>
+    private T Decode<T>(byte[] message) where T : IMessage<T>
     {
         var uniqueIdLength = _localEncoding.GetByteCount(_uniqueId);
         var dataBytes = new byte[message.Length - uniqueIdLength];
         Array.Copy(message, uniqueIdLength, dataBytes, 0, dataBytes.Length);
-        return _serializer.Deserialize<T>(dataBytes);
+        return (T)_serializer.Deserialize(dataBytes, typeof(T));
     }
 }
 

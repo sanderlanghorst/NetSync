@@ -20,7 +20,8 @@ public class NetworkService : INetworkService
 
     private IPAddress[] LocalInterfaces { get; } = Dns.GetHostAddresses(Dns.GetHostName());
 
-    public NetworkService(IMessaging messaging, Discovery discovery, IHostApplicationLifetime hostLifetime, ILogger<NetworkService> logger)
+    public NetworkService(IMessaging messaging, Discovery discovery, IHostApplicationLifetime hostLifetime,
+        ILogger<NetworkService> logger)
     {
         _logger = logger;
         _messaging = messaging;
@@ -34,9 +35,9 @@ public class NetworkService : INetworkService
         try
         {
             await _messaging.Start(_hostLifetime.ApplicationStopping);
-        
+
             var listenTask = _messaging.Run(_hostLifetime.ApplicationStopping);
-        
+
             await Task.WhenAll(_discovery.Run(), listenTask, HandoutTask());
         }
         catch (Exception e)
@@ -54,9 +55,11 @@ public class NetworkService : INetworkService
                 var localInterface =
                     LocalInterfaces.FirstOrDefault(i => i.AddressFamily == _messaging.EndPoint.AddressFamily)
                     ?? LocalInterfaces.First();
-                await _discovery.Handout(DiscoveryHandout.From(new IPEndPoint(localInterface, _messaging.EndPoint.Port)));
+                await _discovery.Handout(
+                    DiscoveryHandout.From(new IPEndPoint(localInterface, _messaging.EndPoint.Port)));
             }
-            await Task.Delay(_random.Next(5000, 10000), _hostLifetime.ApplicationStopping);
+
+            await Task.Delay(_random.Next(15000, 30000), _hostLifetime.ApplicationStopping);
         }
     }
 }

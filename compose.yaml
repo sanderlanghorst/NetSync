@@ -14,12 +14,12 @@
     networks:
       - nsapp_network
   nsapp_3:
-      image: nsapp
-      build:
-        context: .
-        dockerfile: NSApp/Dockerfile
-      networks:
-        - nsapp_network
+    image: nsapp
+    build:
+      context: .
+      dockerfile: NSApp/Dockerfile
+    networks:
+      - nsapp_network
 networks:
   nsapp_network:
     driver: bridge

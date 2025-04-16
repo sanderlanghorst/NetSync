@@ -6,13 +6,13 @@ namespace NetSync;
 
 public class JsonUtf8Serializer : ISerializer
 {
-    public byte[] Serialize<T>(T message) where T : IMessage<T>
+    public byte[] Serialize<T>(T message)
     {
         return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
     }
 
-    public T Deserialize<T>(byte[] message) where T : IMessage<T>
+    public object Deserialize(byte[] message, Type type)
     {
-        return JsonSerializer.Deserialize<T>(Encoding.UTF8.GetString(message))!;
+        return JsonSerializer.Deserialize(Encoding.UTF8.GetString(message), type)!;
     }
 }

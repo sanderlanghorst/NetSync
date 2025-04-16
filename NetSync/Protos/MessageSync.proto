@@ -4,9 +4,15 @@ option csharp_namespace = "NetSync.Protos";
 
 message MessageSync {
   string Key = 1;
-  repeated Kvp Data = 2;
+  uint64 Timestamp = 2;
+  repeated Header Headers = 3;
+  repeated Kvp Data = 4;
 }
-message Kvp{
+message Header {
   string Key = 1;
   string Value = 2;
+}
+message Kvp {
+  string Key = 1;
+  bytes Value = 2;
 }

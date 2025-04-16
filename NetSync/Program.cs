@@ -6,8 +6,16 @@ using NetSync;
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
-        services.AddLogging(l => l.AddSimpleConsole());
-        services.AddSingleton<ISerializer, BinarySerializer>();
+        services.AddLogging(logging =>
+        {
+            logging.AddSimpleConsole(o =>
+            {
+                o.SingleLine = true;
+                o.TimestampFormat = "hh:mm:ss ";
+            });
+        });
+        services.AddSingleton<ISerializer, JsonUtf8Serializer>();
+        services.AddSingleton<ISyncData, SyncData>();
         services.AddSingleton<IMessaging, Messaging>();
         services.AddSingleton<Discovery>();
         services.AddSingleton<IConsoleService, ConsoleService>();
@@ -17,5 +25,5 @@ var host = builder.Build();
 var console = host.Services.GetRequiredService<IConsoleService>();
 var network = host.Services.GetRequiredService<INetworkService>();
 
-await Task.WhenAll([console.Run(), network.Run()]);
+await Task.WhenAll(console.Run(), network.Run());
 //new FirstService.FirstServiceClient()
