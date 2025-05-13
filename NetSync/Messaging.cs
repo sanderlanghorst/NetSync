@@ -95,7 +95,8 @@ public class Messaging : IMessaging
 
     public T Deserialize<T>(byte[] message) where T : IMessage<T>
     {
-        var parser = (MessageParser<T>)typeof(T).GetProperty("Parser").GetValue(null);
+        var parser = (MessageParser<T>?)typeof(T).GetProperty("Parser")?.GetValue(null);
+        if (parser == null) throw new InvalidOperationException($"Type {typeof(T).Name} does not have a valid parser.");
         return parser.ParseFrom(message);
     }
 

@@ -31,11 +31,11 @@ public class SyncData : ISyncData
         _messaging = messaging;
         _serializer = serializer;
         _logger = logger;
+        Data = new ConcurrentDictionary<string, object>();
         _messaging.OnMessageReceived += MessagingOnOnMessageReceived;
         _messaging.OnEndpointAdded += async (sender, endPoint) =>
             await Task.WhenAll(Data.Select(kvp =>
             _messaging.Send(SerializeMessage(kvp.Key, kvp.Value), endPoint, CancellationToken.None)).ToArray());
-        Data = new ConcurrentDictionary<string, object>();
     }
 
     private void MessagingOnOnMessageReceived(object? sender, IMessage e)
@@ -88,6 +88,7 @@ public class SyncData : ISyncData
 
     private MessageSync SerializeMessage<T>(string key, T value)
     {
+        if (value == null) throw new ArgumentNullException(nameof(value));
         return GetSyncMessage(key, [_serializer.Serialize(value)], value.GetType());
     }
 

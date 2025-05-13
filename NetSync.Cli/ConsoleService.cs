@@ -1,17 +1,14 @@
 using Microsoft.Extensions.Hosting;
 
-namespace NetSync;
+namespace NetSync.Cli;
 
-public interface IConsoleService
-{
-    Task Run();
-}
-
-public class ConsoleService : IConsoleService
+public class ConsoleService : IHostedService
 {
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly IMessaging _messaging;
     private readonly ISyncData _sync;
+    private CancellationTokenSource _cts = null!;
+    private Task _task = null!;
 
     public ConsoleService(IHostApplicationLifetime hostLifetime, IMessaging messaging, ISyncData sync)
     {
@@ -20,14 +17,14 @@ public class ConsoleService : IConsoleService
         _sync = sync;
     }
 
-    public async Task Run()
+    public async Task Run(CancellationToken cancellationToken)
     {
-        while (!_hostLifetime.ApplicationStopping.IsCancellationRequested)
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 await Task.Delay(500);
-                var input = Console.ReadLine();
+                var input = await Task.Run(() => Console.ReadLine(), cancellationToken);
                 if (input == null)
                     continue;
 
@@ -54,6 +51,10 @@ public class ConsoleService : IConsoleService
                         break;
                 }
             }
+            catch (OperationCanceledException)
+            {
+                //ignore
+            }
             catch (Exception e)
             {
                 Console.WriteLine(e);
@@ -73,7 +74,7 @@ public class ConsoleService : IConsoleService
     }
     private class ConsoleMessage
     {
-        public string Message { get; set; }
+        public required string Message { get; set; }
     }
 
     private void Get(string key)
@@ -110,5 +111,18 @@ public class ConsoleService : IConsoleService
         {
             Console.WriteLine(endpoint);
         }
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _task = Run(_cts.Token);
+        return Task.CompletedTask;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _cts.CancelAsync();
+        await Task.WhenAll(_task);
     }
 }

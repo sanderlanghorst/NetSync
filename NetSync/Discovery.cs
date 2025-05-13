@@ -10,50 +10,47 @@ namespace NetSync;
 
 public class Discovery
 {
-    private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ISerializer _serializer;
     private readonly int _port = 12345;
-    private Task _listenTask;
-    private UdpClient _udpChannel;
+    private Task _listenTask = null!;
+    private UdpClient _udpChannel = null!;
     private readonly string _uniqueId;
     private readonly Encoding _localEncoding = Encoding.ASCII;
     private readonly ILogger<Discovery> _logger;
 
-    public event Action<DiscoveryRecieved> OnHandout;
+    public event Action<DiscoveryRecieved>? OnHandout;
 
-    public Discovery(IHostApplicationLifetime hostLifetime, ISerializer serializer, ILogger<Discovery> logger)
+    public Discovery(ISerializer serializer, ILogger<Discovery> logger)
     {
-        _hostLifetime = hostLifetime;
         _serializer = serializer;
         _logger = logger;
         _uniqueId = Guid.CreateVersion7().ToString("N").Substring(16, 16);
     }
 
-    public async Task Run()
+    public async Task Run(CancellationToken cancellationToken)
     {
         _udpChannel = new UdpClient();
         _udpChannel.EnableBroadcast = true;
         _udpChannel.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         _udpChannel.Client.Bind(new IPEndPoint(IPAddress.Any, _port));
-        _listenTask = ListenTask();
-        _hostLifetime.ApplicationStopping.Register(() =>
+        _listenTask = ListenTask(cancellationToken);
+        cancellationToken.Register(() =>
         {
             _udpChannel.Close();
-            _listenTask.Wait();
         });
 
         await Task.WhenAll(_listenTask);
     }
 
-    private async Task ListenTask()
+    private async Task ListenTask(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Listening on port " + _port);
         
-        while (!_hostLifetime.ApplicationStopping.IsCancellationRequested)
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var response = await _udpChannel.ReceiveAsync(_hostLifetime.ApplicationStopping);
+                var response = await _udpChannel.ReceiveAsync(cancellationToken);
                 var recievedId = _localEncoding.GetString(response.Buffer, 0, _localEncoding.GetByteCount(_uniqueId));
                 if (recievedId.Equals(_uniqueId))
                 {
