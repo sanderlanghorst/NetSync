@@ -6,6 +6,12 @@
       "environmentVariables": {
       }
     },
+    "NetSync_manual": {
+      "commandName": "Project",
+      "commandLineArgs": "--manual",
+      "environmentVariables": {
+      }
+    },
     "NetSync_second-instance": {
       "commandName": "Project",
       "environmentVariables": {

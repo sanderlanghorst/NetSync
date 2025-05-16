@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NetSync;
 using NetSync.Cli;
 
+var manualMode = args.Contains("--manual");
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {
@@ -15,7 +16,7 @@ var builder = Host.CreateDefaultBuilder(args)
                 o.TimestampFormat = "hh:mm:ss ";
             });
         });
-        services.AddNetSync();
+        services.AddNetSync(o => o.ManualStart = manualMode);
         services.AddHostedService<ConsoleService>();
     });
 var host = builder.Build();

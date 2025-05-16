@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace NetSync.Cli;
 
@@ -7,14 +8,16 @@ public class ConsoleService : IHostedService
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly IMessaging _messaging;
     private readonly ISyncData _sync;
+    private readonly IOptions<NetSyncOptions> _options;
     private CancellationTokenSource _cts = null!;
     private Task _task = null!;
 
-    public ConsoleService(IHostApplicationLifetime hostLifetime, IMessaging messaging, ISyncData sync)
+    public ConsoleService(IHostApplicationLifetime hostLifetime, IMessaging messaging, ISyncData sync, IOptions<NetSyncOptions> options)
     {
         _hostLifetime = hostLifetime;
         _messaging = messaging;
         _sync = sync;
+        _options = options;
     }
 
     public async Task Run(CancellationToken cancellationToken)
@@ -48,6 +51,15 @@ public class ConsoleService : IHostedService
                         break;
                     case "exit":
                         Exit();
+                        break;
+                    case "start" when _options.Value.ManualStart:
+                        await Start();
+                        break;
+                    case "stop" when _options.Value.ManualStart:
+                        await Stop();
+                        break;
+                    case "reset" when _options.Value.ManualStart:
+                        await Reset();
                         break;
                 }
             }
@@ -124,5 +136,19 @@ public class ConsoleService : IHostedService
     {
         await _cts.CancelAsync();
         await Task.WhenAll(_task);
+    }
+
+    private async Task Start()
+    {
+        _options.Value.Start?.Invoke(_cts.Token);
+    }
+    private async Task Stop()
+    {
+        _options.Value.Stop?.Invoke();
+    }
+    private async Task Reset()
+    {
+        _messaging.EndPoints.Clear();
+        _sync.Clear();
     }
 }

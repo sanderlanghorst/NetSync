@@ -147,4 +147,9 @@ public class SyncData : ISyncData
     {
         return Data.Keys;
     }
+
+    public void Clear()
+    {
+        Data.Clear();
+    }
 }
