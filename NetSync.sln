@@ -1,13 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSync.Cli", "NetSync.Cli\NetSync.Cli.csproj", "{1D9347A5-87AD-4023-A2CB-30B41490AEBD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSync.Cli", "src\NetSync.Cli\NetSync.Cli.csproj", "{1D9347A5-87AD-4023-A2CB-30B41490AEBD}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{297C40E5-264F-49A1-8223-67DA32C4D572}"
 	ProjectSection(SolutionItems) = preProject
-		compose.yaml = compose.yaml
+		Dockerfile = Dockerfile
+		.dockerignore = .dockerignore
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSync", "NetSync\NetSync.csproj", "{205BBB53-3935-4C79-B060-0924BE5703B8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSync", "src\NetSync\NetSync.csproj", "{205BBB53-3935-4C79-B060-0924BE5703B8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3965267F-8610-4243-9913-093DCF54C738}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{4028942A-6181-4BCF-83D8-9797D0C0D849}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSync.Tests", "tests\NetSync.Tests\NetSync.Tests.csproj", "{D9D46FB3-553C-472A-BA48-8C1E91E5DEA9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,5 +30,14 @@ Global
 		{205BBB53-3935-4C79-B060-0924BE5703B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{205BBB53-3935-4C79-B060-0924BE5703B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{205BBB53-3935-4C79-B060-0924BE5703B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9D46FB3-553C-472A-BA48-8C1E91E5DEA9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9D46FB3-553C-472A-BA48-8C1E91E5DEA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9D46FB3-553C-472A-BA48-8C1E91E5DEA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9D46FB3-553C-472A-BA48-8C1E91E5DEA9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{205BBB53-3935-4C79-B060-0924BE5703B8} = {3965267F-8610-4243-9913-093DCF54C738}
+		{1D9347A5-87AD-4023-A2CB-30B41490AEBD} = {3965267F-8610-4243-9913-093DCF54C738}
+		{D9D46FB3-553C-472A-BA48-8C1E91E5DEA9} = {4028942A-6181-4BCF-83D8-9797D0C0D849}
 	EndGlobalSection
 EndGlobal
