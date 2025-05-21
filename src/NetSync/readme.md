@@ -38,11 +38,11 @@ services.AddNetSync(options =>
 ## Protocols to keep data in sync
 - Introduction
   - The discovery module will announce the presence of a client on the network. The other clients will receive this announcement and add the client to their pool of clients.
-  - Greeting -> Handshake -> Pool Initiative -> Highest roller updates the new client.
+  - Announcement -> Response -> New client asks random client to update.
 - Update distribution
-  - A client will always send its data to all other clients in the pool.
+  - A client with an update will always send the updated data to all other clients in its pool.
 - Gossip propagation
-  - At random times, a client will check with a random connection to see if it has the latest data.
+  - At random times, a client will check with a random connection in its pool to see if it has the latest data.
 - Vector Clocks
   - Every client has a vector clock that is incremented when it receives data. Every time a client sends data, it includes its vector clock. The receiving client will update its vector clock to the maximum of the two clocks. The receiving client can determine if it is missing updates from certain other clients in the pool.
 - Versioning (Timestamping)
@@ -51,75 +51,74 @@ services.AddNetSync(options =>
   - Each client sends a keep-alive message to all other clients in the pool at regular intervals. If a client does not receive a keep-alive message from another client within a certain time period, it assumes that the client is no longer available and removes it from the pool.
   - When a client reintroduces itself to the pool, an introduction handshake and vectorclock is exchanged.
 
-### sequene diagram
+### Sequene diagram
 ```mermaid
 sequenceDiagram
-    %% Introduction/Discovery: One client
-    rect rgb(245,245,245)
+    
+    note left of A: Introduction/Discovery: One client
+    rect rgb(25,55,25)
         participant A as Client A (new)
-        Note over A: Alone on network, waits for announcements
+        Note over A: Discovery Announce (UDP), Alone on network, waits for announcements
+        A-->A: Wait a second. No clients
     end
 
-    %% Introduction/Discovery: Two clients (A joins B)
-    rect rgb(230,245,255)
+    note left of A: Introduction/Discovery: Two clients (A joins B)
+    rect rgb(25,55,25)
         participant B as Client B (existing)
-        A->>B: Discovery Announce (UDP)
+        Note over A: Discovery Announce (UDP)
         B->>A: Discovery Response (TCP)
-        A->>B: Greeting
-        B->>A: Handshake
-        Note over A,B: Both add each other to pool
+        A-->A: Wait a second. One client
+        A->>B: Ask for update
+        B->>A: Update data and vector clock
     end
 
-    %% Introduction/Discovery: Three or more clients (A joins B and C)
-    rect rgb(220,255,220)
+    note left of A: Introduction/Discovery: Three or more clients (A joins B and C)
+    rect rgb(25,55,25)
         participant C as Client C (existing)
-        A->>B: Discovery Announce (UDP)
-        A->>C: Discovery Announce (UDP)
+        Note over A: Discovery Announce (UDP)
         B->>A: Discovery Response (TCP)
         C->>A: Discovery Response (TCP)
-        A->>B: Greeting
-        A->>C: Greeting
-        B->>A: Handshake
-        C->>A: Handshake
-        Note over B,C: Pool Initiative (Highest roller updates new client)
-        B->>A: Send Full Data (Update)
+        A-->A: Wait a second. Two clients, pick random (B)
+        A->>B: Ask for update
+        B->>A: Update data and vector clock
     end
 
-    %% Update Distribution
-    rect rgb(255,245,230)
-        A->>B: Data Update (Broadcast)
-        A->>C: Data Update (Broadcast)
+    note left of A:  Update Distribution
+    rect rgb(55,20,20)
+        note over A: Client Update
+        A->>B: Data Update
+        A->>C: Data Update
     end
 
-    %% Gossip Propagation
-    rect rgb(255,255,220)
-        B->>C: Gossip Sync Request (Random interval)
-        C->>B: Gossip Sync Response (Latest Data)
+    note left of A:  Gossip Propagation
+    rect rgb(55,55,20)
+        note over A: Random interval
+        A->>B: Vector Request (Random interval)
+        B->>A: Vector Response
+        note over A: Check difference
+        opt
+            A->>B: Data Update (if needed)
+        end
     end
 
-    %% Vector Clocks
-    rect rgb(245,230,255)
-        A->>B: Data Update [Vector Clock]
-        B->>A: Data Update [Vector Clock]
-        Note over A,B: Each update includes vector clock for conflict resolution
-    end
-
-    %% Versioning
-    rect rgb(230,255,255)
-        B->>C: Data Update [Version]
-        C->>B: Accepts if version is newer, ignores if older
-    end
-
-    %% Keepalive
-    rect rgb(255,230,230)
+    note left of A:  Keepalive
+    rect rgb(20,20,55)
         A->>B: Keepalive Ping (Interval)
         B->>A: Keepalive Pong
-        Note over A,B: If no keepalive, client is removed from pool
+        Note over A: If no keepalive, client is removed from pool
     end
 
-    %% Reintroduction
-    rect rgb(240,240,240)
-        A->>B: Discovery Announce (Rejoin)
-        B->>A: Handshake + Vector Clock Exchange
+    note left of A:  Reintroduction One Client
+    rect rgb(20,55,55)
+        note over A: Discovery Announce (UDP)
+        B->>A: Discovery Response (TCP)
+        A-->A: Wait a second. One client
+        A->>B: Vector request
+        B->>A: Vector response
+        note over A: Check difference
+        opt
+            A->>B: Ask for update
+            B->>A: Data Update
+        end
     end
 ```
