@@ -119,7 +119,7 @@ public class ConsoleService : IHostedService
     private void Clients()
     {
         Console.WriteLine("Endpoints:");
-        foreach (var endpoint in _messaging.EndPoints)
+        foreach (var endpoint in _messaging.Clients)
         {
             Console.WriteLine(endpoint);
         }
@@ -148,7 +148,7 @@ public class ConsoleService : IHostedService
     }
     private async Task Reset()
     {
-        _messaging.EndPoints.Clear();
+        _messaging.Clients.Clear();
         _sync.Clear();
     }
 }

@@ -35,8 +35,9 @@ public class ConsoleApplicationTests : IAsyncLifetime
 
         var data = "World!";
         
-        await console1.Write($"set hello:{data}");
         var since = DateTime.Now;
+        await console1.Write($"set hello:{data}");
+        await Task.Delay(100); //give network some time to propagate
         await console2.Write("get hello");
         Assert.Equal(data, await console2.Read(since, 1));
         await console3.Write("get hello");

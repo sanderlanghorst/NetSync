@@ -10,6 +10,7 @@ public class SyncData : ISyncData
     private static class Headers
     {
         public const string Action = "action";
+        public const string Type = "type";
 
         public static class Actions
         {
@@ -17,9 +18,8 @@ public class SyncData : ISyncData
             public const string Sync = "sync";
             public const string Full = "full";
         }
-        
-        public const string Type = "type";
     }
+
     private readonly IMessaging _messaging;
     private readonly ISerializer _serializer;
     private readonly ILogger<SyncData> _logger;
@@ -33,41 +33,67 @@ public class SyncData : ISyncData
         _logger = logger;
         Data = new ConcurrentDictionary<string, object>();
         _messaging.OnMessageReceived += MessagingOnOnMessageReceived;
-        _messaging.OnEndpointAdded += async (sender, endPoint) =>
-            await Task.WhenAll(Data.Select(kvp =>
-            _messaging.Send(SerializeMessage(kvp.Key, kvp.Value), endPoint, CancellationToken.None)).ToArray());
     }
 
-    private void MessagingOnOnMessageReceived(object? sender, IMessage e)
+    public void HandleProtocol(IMessage message)
     {
-        if (e is not MessageSync sync) return;
-        _logger.LogInformation($"Sync message received: {sync.Key}");
-        switch (sync.Headers.FirstOrDefault(h => h.Key == Headers.Action)?.Value)
+        switch (message)
+        {
+            case Data sync:
+                HandleSyncData(sync);
+                break;
+            default: return;
+        }
+    }
+
+    private void HandleSyncData(Data sync)
+    {
+        var action = sync.Headers.FirstOrDefault(h => h.Key == Headers.Action);
+        if (action is null) return;
+        switch (action.Value)
         {
             case Headers.Actions.Remove:
-                foreach (var kvp in sync.Data)
+            {
+                foreach (var kvp in sync.Data_)
                 {
                     Data.TryRemove(kvp.Key, out _);
                 }
+
                 break;
+            }
             case Headers.Actions.Sync:
+            {
                 var type = Type.GetType(sync.Headers.First(h => h.Key == Headers.Type).Value);
                 if (type == null) break;
-                foreach (var kvp in sync.Data)
+                foreach (var kvp in sync.Data_)
                 {
                     var value = kvp.Value.ToByteArray();
                     Data[sync.Key] = _serializer.Deserialize(value, type);
                 }
+
                 break;
+            }
             case Headers.Actions.Full:
-                foreach (var kvp in sync.Data)
+            {
+                var type = Type.GetType(sync.Headers.First(h => h.Key == Headers.Type).Value);
+                if (type == null) break;
+                foreach (var kvp in sync.Data_)
                 {
                     var key = kvp.Key;
                     var value = kvp.Value.ToByteArray();
-                    Data[key] = value;
+                    Data[key] = _serializer.Deserialize(value, type);
                 }
+
                 break;
+            }
         }
+    }
+
+
+    private void MessagingOnOnMessageReceived(object? sender, IMessage e)
+    {
+        _logger.LogTrace($"Sync message received: {e.GetType().Name}");
+        HandleProtocol(e);
     }
 
     public void Set<T>(string key, T? value)
@@ -80,52 +106,53 @@ public class SyncData : ISyncData
         }
         else
         {
-            Data.AddOrUpdate(key, value, (k,v) => value);
+            Data.AddOrUpdate(key, value, (k, v) => value);
             var message = SerializeMessage(key, value);
             _messaging.Send(message, CancellationToken.None);
         }
     }
 
-    private MessageSync SerializeMessage<T>(string key, T value)
+    private Data SerializeMessage<T>(string key, T value)
     {
         if (value == null) throw new ArgumentNullException(nameof(value));
         return GetSyncMessage(key, [_serializer.Serialize(value)], value.GetType());
     }
 
-    private MessageSync GetSyncMessage(string key, byte[][] data, Type type)
+    private Data GetSyncMessage(string key, byte[][] data, Type type)
     {
-        var message = new MessageSync()
+        var message = new Data
         {
             Key = key,
             Timestamp = (ulong)DateTime.Now.Ticks,
             Headers =
             {
-                new Header()
+                new DataHeader
                 {
                     Key = Headers.Action,
                     Value = Headers.Actions.Sync
                 },
-                new Header()
+                new DataHeader
                 {
                     Key = Headers.Type,
                     Value = type.AssemblyQualifiedName
                 }
             },
         };
-        message.Data.AddRange(data.Select((b,i) => new Kvp(){Key = i.ToString(), Value = ByteString.CopyFrom(b)}));
+        message.Data_.AddRange(data.Select((b, i) => new Kvp { Key = i.ToString(), Value = ByteString.CopyFrom(b) }));
         return message;
     }
-    
 
-    private MessageSync GetRemoveMessage(string key)
+
+    private Data GetRemoveMessage(string key)
     {
-        return new MessageSync()
+        return new Data
         {
             Key = key,
             Timestamp = (ulong)DateTime.Now.Ticks,
             Headers =
             {
-                new Header(){
+                new DataHeader
+                {
                     Key = Headers.Action,
                     Value = Headers.Actions.Remove
                 }

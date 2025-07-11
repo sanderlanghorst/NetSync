@@ -1,18 +1,19 @@
 using System.Net;
 using System.Net.Sockets;
 using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Logging;
 using NetSync.Protos;
 
 namespace NetSync;
 
-public class Messaging : IMessaging
+internal class Messaging : IMessaging
 {
     private readonly TcpListener _tcpListener;
     private readonly ILogger<Messaging> _logger;
     public IPEndPoint? EndPoint { get; private set; }
 
-    public List<IPEndPoint> EndPoints { get; } = [];
+    public List<Client> Clients { get; } = [];
 
     private bool IsStarted => EndPoint != null;
 
@@ -23,42 +24,48 @@ public class Messaging : IMessaging
     }
 
     public event EventHandler<IMessage>? OnMessageReceived;
-    public event EventHandler<IPEndPoint>? OnEndpointAdded;
+    public event EventHandler<Client>? OnEndpointAdded;
 
-    public Task Start(CancellationToken cancellationToken)
+    public async Task<NetworkInfo> Start(CancellationToken cancellationToken)
     {
         _tcpListener.Start();
         EndPoint = (IPEndPoint)_tcpListener.LocalEndpoint;
         cancellationToken.Register(() => _tcpListener.Stop());
 
-        return Task.CompletedTask;
+        var localInterfaces = await Dns.GetHostAddressesAsync(Dns.GetHostName(), cancellationToken);
+        var localInterface =
+            localInterfaces.FirstOrDefault(i => i.AddressFamily == EndPoint.AddressFamily)
+            ?? localInterfaces.First();
+        
+        return new NetworkInfo(new IPEndPoint(localInterface, EndPoint.Port));
     }
 
     public async Task Send<T>(T message, CancellationToken cancellationToken) where T : IMessage<T>
     {
         if (!IsStarted) throw new InvalidOperationException("Not started");
-        var sendingTasks = EndPoints.ToList().Select(async e => await SendMessage(e, message, cancellationToken))
+        var sendingTasks = Clients.ToList().Select(async e => await SendMessage(e, message, cancellationToken))
             .ToArray();
         await Task.WhenAll(sendingTasks);
     }
 
-    public async Task Send<T>(T message, IPEndPoint endPoint, CancellationToken cancellationToken) where T : IMessage<T>
+    public async Task Send<T>(T message, Client endPoint, CancellationToken cancellationToken) where T : IMessage<T>
     {
         if (!IsStarted) throw new InvalidOperationException("Not started");
-        var sendingTasks = EndPoints.Where(e => Equals(e, endPoint)).ToList()
+        var sendingTasks = Clients.Where(e => Equals(e, endPoint)).ToList()
             .Select(async e => await SendMessage(e, message, cancellationToken))
             .ToArray();
         await Task.WhenAll(sendingTasks);
     }
 
-    private async Task SendMessage<T>(IPEndPoint endPoint, T message, CancellationToken cancellationToken)
+    private async Task SendMessage<T>(Client endPoint, T message, CancellationToken cancellationToken)
         where T : IMessage<T>
     {
         try
         {
             var client = new TcpClient();
-            await client.ConnectAsync(endPoint, cancellationToken);
-            var bytes = Serialize(message);
+            await client.ConnectAsync(endPoint.Endpoint, cancellationToken);
+            var m = Any.Pack(message);
+            var bytes = m.Serialize();
             await client.GetStream().WriteAsync(bytes, 0, bytes.Length, cancellationToken);
             client.Close();
         }
@@ -69,7 +76,7 @@ public class Messaging : IMessaging
                 e.SocketErrorCode == SocketError.NetworkUnreachable ||
                 e.SocketErrorCode == SocketError.TimedOut)
             {
-                EndPoints.Remove(endPoint);
+                Clients.Remove(endPoint);
                 _logger.LogDebug($"Removed endpoint {endPoint} due to error: {e.SocketErrorCode}");
             }
         }
@@ -77,27 +84,6 @@ public class Messaging : IMessaging
         {
             _logger.LogError(e, e.Message);
         }
-    }
-    
-    public byte[] Serialize<T>(T message) where T : IMessage<T>
-    {
-        if (message is IMessage protobufMessage)
-        {
-            using (var memoryStream = new MemoryStream())
-            {
-                protobufMessage.WriteTo(memoryStream);
-                return memoryStream.ToArray();
-            }
-        }
-
-        throw new InvalidOperationException("Message must be a protobuf message.");
-    }
-
-    public T Deserialize<T>(byte[] message) where T : IMessage<T>
-    {
-        var parser = (MessageParser<T>?)typeof(T).GetProperty("Parser")?.GetValue(null);
-        if (parser == null) throw new InvalidOperationException($"Type {typeof(T).Name} does not have a valid parser.");
-        return parser.ParseFrom(message);
     }
 
     public async Task Run(CancellationToken cancellationToken)
@@ -113,7 +99,8 @@ public class Messaging : IMessaging
             {
                 var client = await _tcpListener.AcceptTcpClientAsync(cancellationToken);
                 var bytes = await client.GetStream().ReadAllBytesAsync();
-                var message = Deserialize<MessageSync>(bytes);
+                var any = Any.Parser.ParseFrom(bytes);
+                var message = any.ToRegisteredType();
 
                 OnMessageReceived?.Invoke(this, message);
                 client.Close();
@@ -125,13 +112,13 @@ public class Messaging : IMessaging
         }
     }
 
-    public void UpdateClient(IPEndPoint address)
+    public void UpdateClient(Client client)
     {
-        if (!EndPoints.Any(ep => ep.Equals(address)))
+        if (!Clients.Any(ep => ep.Endpoint.Equals(client.Endpoint)))
         {
-            EndPoints.Add(address);
-            _logger.LogInformation("Messaging added endpoint: {0}", address);
-            OnEndpointAdded?.Invoke(this, address);
+            Clients.Add(client);
+            _logger.LogInformation("Messaging added endpoint: {0}", client.Id);
+            OnEndpointAdded?.Invoke(this, client);
         }
     }
 }

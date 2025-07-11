@@ -1,7 +1,19 @@
 syntax = "proto3";
 
 option csharp_namespace = "NetSync.Protos";
+// hello?
+message DiscoveryShout {
+  string Id = 1;
+  string Address = 2;
+}
 
-message DiscoveryHandout {
-  string Address = 1;
+// hello!
+message DiscoveryResponse {
+  string Id = 1;
+  string Address = 2;
+}
+
+// still here
+message DiscoveryPing {
+  string Id = 1;
 }

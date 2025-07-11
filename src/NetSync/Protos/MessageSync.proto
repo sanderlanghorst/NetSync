@@ -2,13 +2,25 @@ syntax = "proto3";
 
 option csharp_namespace = "NetSync.Protos";
 
-message MessageSync {
+message AskForUpdate {
+}
+
+message ResponseUpdate {
+  VectorClock Clock = 1;
+  Data Data = 2;
+}
+
+message VectorClock {
+  map<string, uint64> Clocks = 1;
+}
+
+message Data {
   string Key = 1;
   uint64 Timestamp = 2;
-  repeated Header Headers = 3;
+  repeated DataHeader Headers = 3;
   repeated Kvp Data = 4;
 }
-message Header {
+message DataHeader {
   string Key = 1;
   string Value = 2;
 }

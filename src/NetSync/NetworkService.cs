@@ -9,7 +9,7 @@ namespace NetSync;
 public class NetworkService : IHostedService
 {
     private readonly IMessaging _messaging;
-    private readonly Discovery _discovery;
+    private readonly IDiscovery _discovery;
 
     private readonly Random _random = new();
     private readonly ILogger<NetworkService> _logger;
@@ -19,9 +19,7 @@ public class NetworkService : IHostedService
     private Task _handoutTask = null!;
     private CancellationTokenSource _cts = null!;
 
-    private IPAddress[] LocalInterfaces { get; } = Dns.GetHostAddresses(Dns.GetHostName());
-
-    public NetworkService(IMessaging messaging, Discovery discovery, ILogger<NetworkService> logger, IOptions<NetSyncOptions> options)
+    public NetworkService(IMessaging messaging, IDiscovery discovery, ILogger<NetworkService> logger, IOptions<NetSyncOptions> options)
     {
         _logger = logger;
         _options = options;
@@ -32,7 +30,7 @@ public class NetworkService : IHostedService
             _options.Value.Start += (ct) => StartAsync(ct).Wait();
             _options.Value.Stop += () => StopAsync().Wait();
         }
-        _discovery.OnHandout += handout => _messaging.UpdateClient(handout.EndPoint);
+        _discovery.OnHandout += handout => _messaging.UpdateClient(handout.Client);
     }
 
     private async Task HandoutTask(CancellationToken token)
@@ -41,11 +39,7 @@ public class NetworkService : IHostedService
         {
             if (_messaging.EndPoint != null)
             {
-                var localInterface =
-                    LocalInterfaces.FirstOrDefault(i => i.AddressFamily == _messaging.EndPoint.AddressFamily)
-                    ?? LocalInterfaces.First();
-                await _discovery.Handout(
-                    DiscoveryHandout.From(new IPEndPoint(localInterface, _messaging.EndPoint.Port)));
+                await _discovery.Shout();
             }
 
             await Task.Delay(_random.Next(15000, 30000), token);
@@ -63,10 +57,10 @@ public class NetworkService : IHostedService
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            await _messaging.Start(_cts.Token);
+            var info = await _messaging.Start(_cts.Token);
 
             _listenTask = _messaging.Run(_cts.Token);
-            _discoveryTask = _discovery.Run(_cts.Token);
+            _discoveryTask = _discovery.Run(info, _cts.Token);
             _handoutTask = HandoutTask(_cts.Token);
         }
         catch (Exception e)
